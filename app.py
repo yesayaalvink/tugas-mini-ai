@@ -11,11 +11,11 @@ import speech_recognition as sr
 from datetime import datetime, timedelta
 from streamlit_webrtc import webrtc_streamer, VideoProcessorBase, RTCConfiguration
 
-# --- 1. SETUP SESSION STATE (AGAR INTRO PAGE JALAN) ---
+# --- 1. SETUP SESSION STATE ---
 if 'intro_done' not in st.session_state:
     st.session_state.intro_done = False
 
-# --- 2. INTRO PAGE (HALAMAN PEMBUKA) ---
+# --- 2. INTRO PAGE ---
 if not st.session_state.intro_done:
     st.set_page_config(page_title="Intro - Tugas AI", layout="centered")
     
@@ -30,20 +30,18 @@ if not st.session_state.intro_done:
     
     ---
     **🛠️ Fitur AI yang tersedia:**
-    1.  **🎨 AI Air Canvas:** Menggambar di udara menggunakan Computer Vision (Hand Tracking).
-    2.  **🌦️ Smart Weather:** Dashboard cuaca real-time & prediksi berbasis API.
-    3.  **🎙️ Live Voice Transcriber:** Mengubah suara menjadi teks secara continuous (Real-time).
+    1.  **🎨 AI Air Canvas:** Menggambar di udara (Computer Vision).
+    2.  **🌦️ Smart Weather:** Dashboard cuaca real-time & prediksi.
+    3.  **🎙️ Live Voice Transcriber:** Speech-to-Text Converter.
     """)
     
     if st.button("🚀 MULAI APLIKASI", type="primary", use_container_width=True):
         st.session_state.intro_done = True
         st.rerun()
-    
-    # Stop eksekusi kode di bawahnya kalau belum klik Mulai
     st.stop()
 
 # ==============================================================================
-# MAIN DASHBOARD (HANYA MUNCUL SETELAH KLIK MULAI)
+# MAIN DASHBOARD
 # ==============================================================================
 
 # --- SETUP DATABASE ---
@@ -52,13 +50,17 @@ c = conn.cursor()
 c.execute('CREATE TABLE IF NOT EXISTS galeri (waktu TEXT, event TEXT, status TEXT)')
 conn.commit()
 
+# FUNGSI WAKTU WIB (PENTING BUAT CLOUD)
+def get_wib_now():
+    return datetime.utcnow() + timedelta(hours=7)
+
 def simpan_ke_db(event, status):
-    waktu = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    waktu = get_wib_now().strftime("%Y-%m-%d %H:%M:%S")
     c.execute("INSERT INTO galeri VALUES (?, ?, ?)", (waktu, event, status))
     conn.commit()
     return waktu
 
-# --- KONFIGURASI HALAMAN UTAMA ---
+# --- KONFIGURASI HALAMAN ---
 st.set_page_config(layout="wide", page_title="Super AI Dashboard")
 st.title("🤖 Artificial Intelligence Dashboard (3-in-1)")
 st.caption("Dibuat oleh: Yesaya Alvin K (632025053)")
@@ -71,14 +73,22 @@ tab1, tab2, tab3 = st.tabs([
 ])
 
 # ==========================================
-# TAB 1: AI AIR CANVAS (AMAN - TIDAK DIUBAH)
+# TAB 1: AI AIR CANVAS (ADA PENJELASAN DELAY)
 # ==========================================
 with tab1:
+    # --- DISCLAIMER BUAT DOSEN ---
+    st.warning("""
+    ⚠️ **Catatan Teknis (Cloud Latency):**
+    Jika dijalankan secara Online (Streamlit Cloud), mungkin akan terasa sedikit **delay/lag**.
+    Hal ini wajar karena video harus dikirim dari Browser -> Server (USA) -> Diproses AI -> Dikirim balik ke Browser.
+    Untuk performa real-time tanpa delay, aplikasi ini berjalan optimal di Localhost.
+    """)
+    
     col_kiri, col_kanan = st.columns([2, 1])
     with col_kanan:
         st.header("🎮 Panel Kontrol")
         st.info("""
-        **Petunjuk Kontrol:**
+        **Petunjuk:**
         1. ☝️ Telunjuk Naik = ✏️ **MENGGAMBAR**
         2. ✊ Kepal Tangan = 🛑 **STOP**
         3. ✌️ Peace / ✋ Buka = 🛑 **STOP**
@@ -146,7 +156,7 @@ with tab1:
         webrtc_streamer(key="air-canvas-final", video_processor_factory=CanvasProcessor, rtc_configuration=RTCConfiguration({"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]}), media_stream_constraints={"video": True, "audio": False})
 
 # ==========================================
-# TAB 2: SMART WEATHER (FIX JAM LOMPAT)
+# TAB 2: SMART WEATHER (WIB TIMEZONE FIX)
 # ==========================================
 with tab2:
     col_h1, col_h2 = st.columns([3, 1])
@@ -155,8 +165,8 @@ with tab2:
     with col_h2:
         if st.button("🔄 Refresh Data"):
             st.rerun()
-        wib_now = datetime.utcnow() + timedelta(hours=7)
-        st.caption(f"Last Updated (WIB): {wib_now.strftime('%H:%M:%S')}")
+        # Menggunakan Fungsi WIB yang kita buat
+        st.caption(f"Last Updated (WIB): {get_wib_now().strftime('%H:%M:%S')}")
 
     LAT, LON = -7.3305, 110.5084
     try:
@@ -198,8 +208,18 @@ with tab2:
             d = data['hourly']
             df_show = pd.DataFrame({"Waktu": d['time'], "Suhu": d['temperature_2m'], "Hujan": d['precipitation'], "Angin": d['wind_speed_10m']})
             df_show['Waktu'] = pd.to_datetime(df_show['Waktu'])
-            now = datetime.now()
-            df_show = df_show[(df_show['Waktu'] >= now) & (df_show['Waktu'] <= now + timedelta(hours=24))]
+            
+            # --- FIX TIMEZONE BUAT FILTERING ---
+            # Kita paksa 'now' menjadi WIB (UTC+7)
+            # Dan pastikan kolom 'Waktu' dianggap offset-aware atau naive yang sesuai
+            now_wib = get_wib_now() 
+            
+            # Open Meteo timezone Asia/Bangkok sudah mengembalikan waktu lokal,
+            # tapi Pandas kadang bingung. Kita anggap data dari API sudah WIB.
+            # Filter dari Sekarang (WIB) sampai 24 jam ke depan
+            mask = (df_show['Waktu'] >= now_wib.replace(tzinfo=None)) & (df_show['Waktu'] <= (now_wib + timedelta(hours=24)).replace(tzinfo=None))
+            df_show = df_show.loc[mask]
+
         else: # Harian
             d = data['daily']
             df_show = pd.DataFrame({"Waktu": d['time'], "Suhu": d['temperature_2m_max'], "Hujan": d['precipitation_sum'], "Angin": d['wind_speed_10m_max']})
@@ -207,13 +227,7 @@ with tab2:
 
         def apply_layout_fix(fig, interval):
             if interval == "Per Jam":
-                # FORCE EVERY HOUR TICK (TIDAK LOMPAT)
-                fig.update_xaxes(
-                    dtick=3600000, # 1 Jam dalam milidetik
-                    tickformat="%H:%M",
-                    tickangle=-45,
-                    tickmode='linear' # Paksa linear agar tidak auto-skip
-                )
+                fig.update_xaxes(dtick=3600000, tickformat="%H:%M", tickangle=-45, tickmode='linear')
             elif interval == "Harian":
                 fig.update_xaxes(tickformat="%d-%b", tickangle=-45)
             return fig
@@ -247,11 +261,18 @@ with tab2:
         st.error("Gagal koneksi API.")
 
 # ==========================================
-# TAB 3: LIVE VOICE (TOMBOL PINTAR & DB AUTO)
+# TAB 3: LIVE VOICE (DENGAN WARNING CLOUD)
 # ==========================================
 with tab3:
     st.header("🎙️ Live Voice to Text")
-    st.caption("Klik Mulai, sistem akan mendengarkan terus menerus (Indo/Eng Mix). Klik Stop untuk selesai.")
+    
+    # --- INFO KHUSUS BUAT CLOUD ---
+    st.warning("""
+    ⚠️ **Penting untuk Demo:** 
+    Fitur ini membutuhkan akses hardware microphone langsung (PyAudio).
+    Pada **Streamlit Cloud**, fitur ini mungkin tidak berjalan karena server tidak memiliki microphone.
+    **Silakan demokan fitur ini di Localhost (Laptop Sendiri) untuk hasil yang berfungsi.**
+    """)
     
     col_kiri, col_kanan = st.columns([1, 2])
     
@@ -260,14 +281,11 @@ with tab3:
     if 'full_transcript' not in st.session_state: st.session_state.full_transcript = ""
 
     with col_kiri:
-        # LOGIKA TOMBOL GANTI-GANTI
         if not st.session_state.recording:
-            # Tombol Hijau kalau belum rekam
             if st.button("▶️ MULAI MENDENGARKAN", type="primary", use_container_width=True):
                 st.session_state.recording = True
                 st.rerun()
         else:
-            # Tombol Merah kalau sedang rekam
             if st.button("⏹️ STOP (SEDANG MENDENGARKAN)", type="secondary", use_container_width=True):
                 st.session_state.recording = False
                 st.rerun()
@@ -288,29 +306,25 @@ with tab3:
             r.energy_threshold = 300 
             
             try:
+                # INI AKAN ERROR DI CLOUD, JADI KITA TRY-EXCEPT BIAR GAK CRASH
                 with sr.Microphone() as source:
                     r.adjust_for_ambient_noise(source, duration=0.5)
-                    
                     while st.session_state.recording:
                         transkrip_box.markdown(f"**🔴 Merekam...**\n\n{st.session_state.full_transcript}")
                         try:
                             audio = r.listen(source, timeout=None, phrase_time_limit=15)
                             transkrip_box.markdown(f"**🧠 Memproses suara...**\n\n{st.session_state.full_transcript}")
-                            
                             text = r.recognize_google(audio, language="id-ID")
-                            
-                            timestamp = datetime.now().strftime("%H:%M:%S")
+                            timestamp = get_wib_now().strftime("%H:%M:%S")
                             st.session_state.full_transcript += f"[{timestamp}] {text}\n"
-                            
                             transkrip_box.text_area("Live Transkrip:", value=st.session_state.full_transcript, height=400)
-                            
-                            # SIMPAN DATABASE OTOMATIS
                             simpan_ke_db("Voice Input", text)
-                            
                         except sr.WaitTimeoutError: pass 
                         except sr.UnknownValueError: pass
                         except Exception as e: break
+            except OSError:
+                st.error("❌ **Error Hardware:** Server tidak menemukan Microphone. (Ini normal di Streamlit Cloud). Silakan jalankan di Localhost.")
             except Exception as e:
-                st.error("Gagal akses Microphone.")
+                st.error(f"Error: {e}")
         else:
             transkrip_box.text_area("Hasil Akhir:", value=st.session_state.full_transcript, height=400)
