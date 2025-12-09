@@ -73,7 +73,7 @@ tab1, tab2 = st.tabs([
 # TAB 1: AI AIR CANVAS (FIX KONEKSI HP)
 # ==========================================
 with tab1:
-    st.info("💡 **Tips:** Jika di HP, pastikan izinkan akses kamera. Gunakan pencahayaan yang cukup agar jari terdeteksi.")
+    st.info("💡 **Tips:**Gunakan Laptop / PC, karena untuk penggunaan smartphone masih belum berhasil dijalankan. Jika kamera tidak mau menyala, artinya koneksi sedang bermasalah.")
     
     col_kiri, col_kanan = st.columns([2, 1])
     with col_kanan:
@@ -258,3 +258,4 @@ with tab2:
         with c_p3: st.plotly_chart(px.line(df_pred, x="Tanggal", y="Angin Max", markers=True, title="Prediksi Angin Kencang").update_traces(line_color='purple'), use_container_width=True)
     except:
         st.error("Gagal koneksi API.")
+
