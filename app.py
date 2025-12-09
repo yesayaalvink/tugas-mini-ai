@@ -7,7 +7,6 @@ import sqlite3
 import pandas as pd
 import requests
 import plotly.express as px
-import speech_recognition as sr
 from datetime import datetime, timedelta
 from streamlit_webrtc import webrtc_streamer, VideoProcessorBase, RTCConfiguration
 
@@ -22,17 +21,16 @@ if not st.session_state.intro_done:
     st.title("👋 Halo!")
     st.markdown("""
     ### Selamat Datang di AI Dashboard
-    Aplikasi Streamlit ini berisi **3 kumpulan AI Tools** yang dibentuk untuk menyelesaikan tugas mengenai pembuatan program **Mini AI**.
+    Aplikasi ini adalah **2-in-1 AI Tools** untuk tugas **Mini AI**.
     
     **Dibuat oleh:**
     *   **Nama:** Yesaya Alvin K
     *   **NIM:** 632025053
     
     ---
-    **🛠️ Fitur AI yang tersedia:**
+    **🛠️ Fitur AI:**
     1.  **🎨 AI Air Canvas:** Menggambar di udara (Computer Vision).
-    2.  **🌦️ Smart Weather:** Dashboard cuaca real-time & prediksi.
-    3.  **🎙️ Live Voice Transcriber:** Speech-to-Text Converter.
+    2.  **🌦️ Smart Weather:** Analisis & Prediksi Cuaca Real-time.
     """)
     
     if st.button("🚀 MULAI APLIKASI", type="primary", use_container_width=True):
@@ -50,7 +48,7 @@ c = conn.cursor()
 c.execute('CREATE TABLE IF NOT EXISTS galeri (waktu TEXT, event TEXT, status TEXT)')
 conn.commit()
 
-# FUNGSI WAKTU WIB (PENTING BUAT CLOUD)
+# FUNGSI WAKTU WIB
 def get_wib_now():
     return datetime.utcnow() + timedelta(hours=7)
 
@@ -62,32 +60,25 @@ def simpan_ke_db(event, status):
 
 # --- KONFIGURASI HALAMAN ---
 st.set_page_config(layout="wide", page_title="Super AI Dashboard")
-st.title("🤖 Artificial Intelligence Dashboard (3-in-1)")
+st.title("🤖 Artificial Intelligence Dashboard (2-in-1)")
 st.caption("Dibuat oleh: Yesaya Alvin K (632025053)")
 
-# --- TAB SETUP ---
-tab1, tab2, tab3 = st.tabs([
+# --- TAB SETUP (2 TAB SAJA) ---
+tab1, tab2 = st.tabs([
     "🎨 AI Air Canvas", 
-    "🌦️ Smart Weather", 
-    "🎙️ Live Voice Transcriber"
+    "🌦️ Smart Weather"
 ])
 
 # ==========================================
-# TAB 1: AI AIR CANVAS (ADA PENJELASAN DELAY)
+# TAB 1: AI AIR CANVAS (FIX KONEKSI HP)
 # ==========================================
 with tab1:
-    # --- DISCLAIMER BUAT DOSEN ---
-    st.warning("""
-    ⚠️ **Catatan Teknis (Cloud Latency):**
-    Jika dijalankan secara Online (Streamlit Cloud), mungkin akan terasa sedikit **delay/lag**.
-    Hal ini wajar karena video harus dikirim dari Browser -> Server (USA) -> Diproses AI -> Dikirim balik ke Browser.
-    Untuk performa real-time tanpa delay, aplikasi ini berjalan optimal di Localhost.
-    """)
+    st.info("💡 **Tips:** Jika di HP, pastikan izinkan akses kamera. Gunakan pencahayaan yang cukup agar jari terdeteksi.")
     
     col_kiri, col_kanan = st.columns([2, 1])
     with col_kanan:
         st.header("🎮 Panel Kontrol")
-        st.info("""
+        st.markdown("""
         **Petunjuk:**
         1. ☝️ Telunjuk Naik = ✏️ **MENGGAMBAR**
         2. ✊ Kepal Tangan = 🛑 **STOP**
@@ -108,6 +99,7 @@ with tab1:
 
     with col_kiri:
         st.header("Kamera (Live)")
+        
         class CanvasProcessor(VideoProcessorBase):
             def __init__(self):
                 self.mp_hands = mp.solutions.hands
@@ -153,10 +145,26 @@ with tab1:
                 img = cv2.bitwise_and(img, img_inv)
                 img = cv2.bitwise_or(img, self.canvas)
                 return av.VideoFrame.from_ndarray(img, format="bgr24")
-        webrtc_streamer(key="air-canvas-final", video_processor_factory=CanvasProcessor, rtc_configuration=RTCConfiguration({"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]}), media_stream_constraints={"video": True, "audio": False})
+
+        # --- KONFIGURASI JARINGAN (STUN SERVER) ---
+        # Ini rahasianya supaya jalan lancar di HP dan Jaringan berbeda
+        rtc_config = RTCConfiguration(
+            {"iceServers": [
+                {"urls": ["stun:stun.l.google.com:19302"]},
+                {"urls": ["stun:global.stun.twilio.com:3478"]}
+            ]}
+        )
+
+        webrtc_streamer(
+            key="air-canvas-fix-mobile",
+            video_processor_factory=CanvasProcessor,
+            rtc_configuration=rtc_config,  # Pake config yang kuat
+            media_stream_constraints={"video": True, "audio": False}, # Matikan audio biar ringan
+            async_processing=True
+        )
 
 # ==========================================
-# TAB 2: SMART WEATHER (WIB TIMEZONE FIX)
+# TAB 2: SMART WEATHER (PERFECT)
 # ==========================================
 with tab2:
     col_h1, col_h2 = st.columns([3, 1])
@@ -165,7 +173,6 @@ with tab2:
     with col_h2:
         if st.button("🔄 Refresh Data"):
             st.rerun()
-        # Menggunakan Fungsi WIB yang kita buat
         st.caption(f"Last Updated (WIB): {get_wib_now().strftime('%H:%M:%S')}")
 
     LAT, LON = -7.3305, 110.5084
@@ -208,15 +215,7 @@ with tab2:
             d = data['hourly']
             df_show = pd.DataFrame({"Waktu": d['time'], "Suhu": d['temperature_2m'], "Hujan": d['precipitation'], "Angin": d['wind_speed_10m']})
             df_show['Waktu'] = pd.to_datetime(df_show['Waktu'])
-            
-            # --- FIX TIMEZONE BUAT FILTERING ---
-            # Kita paksa 'now' menjadi WIB (UTC+7)
-            # Dan pastikan kolom 'Waktu' dianggap offset-aware atau naive yang sesuai
             now_wib = get_wib_now() 
-            
-            # Open Meteo timezone Asia/Bangkok sudah mengembalikan waktu lokal,
-            # tapi Pandas kadang bingung. Kita anggap data dari API sudah WIB.
-            # Filter dari Sekarang (WIB) sampai 24 jam ke depan
             mask = (df_show['Waktu'] >= now_wib.replace(tzinfo=None)) & (df_show['Waktu'] <= (now_wib + timedelta(hours=24)).replace(tzinfo=None))
             df_show = df_show.loc[mask]
 
@@ -259,72 +258,3 @@ with tab2:
         with c_p3: st.plotly_chart(px.line(df_pred, x="Tanggal", y="Angin Max", markers=True, title="Prediksi Angin Kencang").update_traces(line_color='purple'), use_container_width=True)
     except:
         st.error("Gagal koneksi API.")
-
-# ==========================================
-# TAB 3: LIVE VOICE (DENGAN WARNING CLOUD)
-# ==========================================
-with tab3:
-    st.header("🎙️ Live Voice to Text")
-    
-    # --- INFO KHUSUS BUAT CLOUD ---
-    st.warning("""
-    ⚠️ **Penting untuk Demo:** 
-    Fitur ini membutuhkan akses hardware microphone langsung (PyAudio).
-    Pada **Streamlit Cloud**, fitur ini mungkin tidak berjalan karena server tidak memiliki microphone.
-    **Silakan demokan fitur ini di Localhost (Laptop Sendiri) untuk hasil yang berfungsi.**
-    """)
-    
-    col_kiri, col_kanan = st.columns([1, 2])
-    
-    # Init State
-    if 'recording' not in st.session_state: st.session_state.recording = False
-    if 'full_transcript' not in st.session_state: st.session_state.full_transcript = ""
-
-    with col_kiri:
-        if not st.session_state.recording:
-            if st.button("▶️ MULAI MENDENGARKAN", type="primary", use_container_width=True):
-                st.session_state.recording = True
-                st.rerun()
-        else:
-            if st.button("⏹️ STOP (SEDANG MENDENGARKAN)", type="secondary", use_container_width=True):
-                st.session_state.recording = False
-                st.rerun()
-        
-        st.write("---")
-        if st.session_state.recording:
-            st.markdown("### 👂 STATUS: MENDENGARKAN...")
-            st.spinner("Jangan diam terlalu lama...")
-        else:
-            st.markdown("### 💤 STATUS: STANDBY")
-
-    with col_kanan:
-        transkrip_box = st.empty()
-        
-        if st.session_state.recording:
-            r = sr.Recognizer()
-            r.pause_threshold = 1.0 
-            r.energy_threshold = 300 
-            
-            try:
-                # INI AKAN ERROR DI CLOUD, JADI KITA TRY-EXCEPT BIAR GAK CRASH
-                with sr.Microphone() as source:
-                    r.adjust_for_ambient_noise(source, duration=0.5)
-                    while st.session_state.recording:
-                        transkrip_box.markdown(f"**🔴 Merekam...**\n\n{st.session_state.full_transcript}")
-                        try:
-                            audio = r.listen(source, timeout=None, phrase_time_limit=15)
-                            transkrip_box.markdown(f"**🧠 Memproses suara...**\n\n{st.session_state.full_transcript}")
-                            text = r.recognize_google(audio, language="id-ID")
-                            timestamp = get_wib_now().strftime("%H:%M:%S")
-                            st.session_state.full_transcript += f"[{timestamp}] {text}\n"
-                            transkrip_box.text_area("Live Transkrip:", value=st.session_state.full_transcript, height=400)
-                            simpan_ke_db("Voice Input", text)
-                        except sr.WaitTimeoutError: pass 
-                        except sr.UnknownValueError: pass
-                        except Exception as e: break
-            except OSError:
-                st.error("❌ **Error Hardware:** Server tidak menemukan Microphone. (Ini normal di Streamlit Cloud). Silakan jalankan di Localhost.")
-            except Exception as e:
-                st.error(f"Error: {e}")
-        else:
-            transkrip_box.text_area("Hasil Akhir:", value=st.session_state.full_transcript, height=400)
