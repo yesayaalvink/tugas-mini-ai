@@ -73,20 +73,18 @@ tab1, tab2 = st.tabs([
 # TAB 1: AI AIR CANVAS
 # ==========================================
 with tab1:
-    # --- PESAN REKOMENDASI PERANGKAT (REQUEST KAMU) ---
+    # --- [DISINI GANTI WARNANYA] ---
+    # st.error -> Merah
+    # st.warning -> Kuning
+    # st.info -> Biru
+    
     st.warning("""
-    ⚠️ **PEMBERITAHUAN PENTING UNTUK PENGGUNA:**
+    ⚠️ **CATATAN PENTING (KONEKSI KAMERA):**
     
-    ⚠️Jika belum berhasil menyala, silahkan dilakukan klik berulang pada tombol start dan stop.
-    
-    Fitur kamera ini menggunakan teknologi WebRTC yang sangat sensitif terhadap keamanan browser.
-    **SANGAT DISARANKAN MENGGUNAKAN LAPTOP (WINDOWS/MAC) STANDAR.**
-    
-    Jika kamera gagal dimuat (Error Connection/Taking too long), penyebabnya biasanya adalah:
-    1.  **Firewall/Antivirus** di Laptop Gaming/Kantor memblokir akses.
-    2.  **Browser HP** memiliki pembatasan daya/privasi yang ketat.
-    
-    *Silakan gunakan laptop pribadi standar untuk hasil demonstrasi terbaik.*
+    Fitur ini menggunakan teknologi **WebRTC**. Jika kamera tidak muncul atau loading terus-menerus:
+    1.  Pastikan Anda menggunakan **Laptop/PC** (Browser HP sering memblokir akses).
+    2.  Pastikan tidak menggunakan jaringan dengan Firewall ketat (seperti WiFi Kantor/Kampus tertentu).
+    3.  Jika gagal, silakan **Refresh** halaman dan coba lagi.
     """)
     
     col_kiri, col_kanan = st.columns([2, 1])
@@ -107,7 +105,8 @@ with tab1:
         if st.checkbox("Tampilkan Data Log", value=True):
             try:
                 df = pd.read_sql_query("SELECT * FROM galeri ORDER BY waktu DESC", conn)
-                st.dataframe(df, use_container_width=True)
+                # width='stretch' untuk menghilangkan warning di versi baru
+                st.dataframe(df, use_container_width=True) 
             except:
                 st.write("Belum ada data.")
 
@@ -160,16 +159,15 @@ with tab1:
                 img = cv2.bitwise_or(img, self.canvas)
                 return av.VideoFrame.from_ndarray(img, format="bgr24")
 
-        # --- KONFIGURASI JARINGAN ---
+        # --- KONFIGURASI JARINGAN STUN GOOGLE (Paling Stabil) ---
         rtc_config = {
             "iceServers": [
                 {"urls": ["stun:stun.l.google.com:19302"]},
-                {"urls": ["stun:global.stun.twilio.com:3478"]},
             ]
         }
 
         webrtc_streamer(
-            key="air-canvas-final-v4",
+            key="air-canvas-final-v5",
             video_processor_factory=CanvasProcessor,
             rtc_configuration=rtc_config, 
             media_stream_constraints={
@@ -278,6 +276,3 @@ with tab2:
         with c_p3: st.plotly_chart(px.line(df_pred, x="Tanggal", y="Angin Max", markers=True, title="Prediksi Angin Kencang").update_traces(line_color='purple'), use_container_width=True)
     except:
         st.error("Gagal koneksi API.")
-
-
-
