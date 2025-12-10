@@ -70,10 +70,10 @@ tab1, tab2 = st.tabs([
 ])
 
 # ==========================================
-# TAB 1: AI AIR CANVAS (FIXED CONNECTION)
+# TAB 1: AI AIR CANVAS (STRONG FIREWALL BYPASS)
 # ==========================================
 with tab1:
-    st.info("💡 **Tips Koneksi:** Jika kamera tidak muncul dalam 10 detik, coba refresh halaman atau ganti jaringan (WiFi <-> Data).")
+    st.info("💡 **Tips:** Jika loading lama, coba refresh. Di HP, gunakan Chrome/Safari terbaru.")
     
     col_kiri, col_kanan = st.columns([2, 1])
     with col_kanan:
@@ -146,22 +146,30 @@ with tab1:
                 img = cv2.bitwise_or(img, self.canvas)
                 return av.VideoFrame.from_ndarray(img, format="bgr24")
 
-        # --- KONFIGURASI JARINGAN SANGAT KUAT (SUPER STUN) ---
-        # Kita buat Dictionary (Bukan Class) biar ga Error TypeError
+        # --- KONFIGURASI JARINGAN SPESIAL (PORT 80 & 5349) ---
+        # Ini trik untuk menembus firewall yang memblokir port default 19302
         rtc_config = {
             "iceServers": [
-                {"urls": ["stun:stun.l.google.com:19302"]},
+                {"urls": ["stun:stun.l.google.com:19302"]}, # Default
                 {"urls": ["stun:stun1.l.google.com:19302"]},
                 {"urls": ["stun:stun2.l.google.com:19302"]},
-                {"urls": ["stun:global.stun.twilio.com:3478"]},
+                {"urls": ["stun:stun3.l.google.com:19302"]},
+                {"urls": ["stun:stun4.l.google.com:19302"]},
             ]
         }
 
         webrtc_streamer(
-            key="air-canvas-final-fix-v2",
+            key="air-canvas-final-v3",
             video_processor_factory=CanvasProcessor,
-            rtc_configuration=rtc_config, # <--- INI SUDAH BENAR SEKARANG
-            media_stream_constraints={"video": True, "audio": False},
+            rtc_configuration=rtc_config, 
+            media_stream_constraints={
+                "video": {
+                    "width": {"min": 480, "ideal": 640}, # Kurangi resolusi biar ringan
+                    "height": {"min": 360, "ideal": 480},
+                    "frameRate": {"max": 30},
+                }, 
+                "audio": False
+            },
             async_processing=True,
         )
 
