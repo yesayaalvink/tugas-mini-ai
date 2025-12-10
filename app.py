@@ -15,10 +15,9 @@ from streamlit_webrtc import webrtc_streamer, VideoProcessorBase, RTCConfigurati
 # ==============================================================================
 st.set_page_config(layout="wide", page_title="Super AI Dashboard")
 
-# Custom CSS untuk membuat Navigasi Besar & Tombol Keren
+# CSS untuk Navigasi Besar
 st.markdown("""
 <style>
-    /* Mengubah Ukuran Radio Button menjadi Tombol Tab Besar */
     div[role="radiogroup"] {
         display: flex;
         justify-content: center;
@@ -32,7 +31,7 @@ st.markdown("""
         padding: 15px 30px;
         border-radius: 10px;
         margin: 0 10px;
-        font-size: 20px !important; /* Font Besar */
+        font-size: 20px !important;
         font-weight: bold;
         border: 2px solid #ddd;
         cursor: pointer;
@@ -44,12 +43,9 @@ st.markdown("""
         border-color: #ff4b4b;
         color: #ff4b4b;
     }
-    /* Highlight tombol yang aktif */
     div[role="radiogroup"] label[data-baseweb="radio"] > div:first-child {
         background-color: #ff4b4b !important;
     }
-    
-    /* Tombol Next/Prev di Bawah */
     .stButton button {
         width: 100%;
         font-size: 18px;
@@ -60,7 +56,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ==============================================================================
-# 2. INTRO PAGE (UPDATE TEKS)
+# 2. INTRO PAGE
 # ==============================================================================
 if 'intro_done' not in st.session_state:
     st.session_state.intro_done = False
@@ -80,7 +76,7 @@ if not st.session_state.intro_done:
     1.  **🎨 AI Air Canvas:** Menggambar di udara (Computer Vision).
     2.  **🌦️ Smart Weather:** Analisis & Prediksi Cuaca Real-time.
 
-    ⚠️ **CATATAN PENTING: Jika AI 1 (AI Air Canvas) mengalami kegagalan (karena faktor device/jaringan), saya menyarankan untuk menggunakan AI 2 pada tab 2 untuk mencoba feature lainnya.**
+    ⚠️ **CATATAN PENTING: Jika AI 1 (AI Air Canvas) mengalami kegagalan, saya menyarankan untuk menggunakan AI 2 pada tab 2 untuk mencoba feature lainnya.**
     """)
     
     if st.button("🚀 MULAI APLIKASI", type="primary", use_container_width=True):
@@ -89,39 +85,39 @@ if not st.session_state.intro_done:
     st.stop()
 
 # ==============================================================================
-# 3. NAVIGASI UTAMA (LOGIKA PINDAH HALAMAN)
+# 3. NAVIGASI UTAMA (FIX LOGIC)
 # ==============================================================================
 
-# Init Session State untuk Navigasi
+# Daftar Halaman
+HALAMAN_1 = "🎨 AI Air Canvas"
+HALAMAN_2 = "🌦️ Smart Weather"
+LIST_HALAMAN = [HALAMAN_1, HALAMAN_2]
+
+# Init State Halaman Aktif
 if 'active_page' not in st.session_state:
-    st.session_state.active_page = "🎨 AI Air Canvas"
+    st.session_state.active_page = HALAMAN_1
 
-# Fungsi untuk ganti halaman lewat tombol bawah
-def ganti_halaman(halaman):
-    st.session_state.active_page = halaman
+# Fungsi Callback untuk Navigasi Atas
+def update_halaman():
+    st.session_state.active_page = st.session_state.navigasi_radio
 
-# Header Dashboard
 st.title("🤖 Artificial Intelligence Dashboard")
 st.caption("Dibuat oleh: Yesaya Alvin K (632025053)")
 
-# Menu Navigasi (Radio Button rasa Tabs)
+# Menu Navigasi (Radio Button)
+# KUNCI: `index` diambil dari session_state, supaya sinkron dengan tombol bawah
 pilihan_menu = st.radio(
     "", 
-    ["🎨 AI Air Canvas", "🌦️ Smart Weather"], 
-    index=0 if st.session_state.active_page == "🎨 AI Air Canvas" else 1,
+    LIST_HALAMAN, 
+    index=LIST_HALAMAN.index(st.session_state.active_page),
     horizontal=True,
     label_visibility="collapsed",
-    key="navigasi_atas",
-    on_change=lambda: ganti_halaman(st.session_state.navigasi_atas) # Sinkronisasi state
+    key="navigasi_radio",
+    on_change=update_halaman # Saat diklik, update state
 )
 
-# Update state jika radio button diklik manual
-if pilihan_menu != st.session_state.active_page:
-    st.session_state.active_page = pilihan_menu
-    st.rerun()
-
 # ==============================================================================
-# 4. FUNGSI DATABASE & HELPER
+# 4. FUNGSI DATABASE
 # ==============================================================================
 conn = sqlite3.connect('database_ai_v2.db', check_same_thread=False)
 c = conn.cursor()
@@ -140,11 +136,9 @@ def simpan_ke_db(event, status):
 # ==============================================================================
 # 5. HALAMAN 1: AI AIR CANVAS
 # ==============================================================================
-if st.session_state.active_page == "🎨 AI Air Canvas":
+if st.session_state.active_page == HALAMAN_1:
     
-    # --- KONTEN AI 1 ---
     st.markdown("## 🎨 AI 1: Air Canvas (Hand Tracking)")
-    
     st.warning("""
     ⚠️ **CATATAN PENTING (KONEKSI KAMERA):**
     Fitur ini menggunakan teknologi **WebRTC**. Jika kamera tidak muncul atau loading terus-menerus:
@@ -224,29 +218,27 @@ if st.session_state.active_page == "🎨 AI Air Canvas":
                 img = cv2.bitwise_or(img, self.canvas)
                 return av.VideoFrame.from_ndarray(img, format="bgr24")
 
-        # Config STUN
         rtc_config = {"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}, {"urls": ["stun:global.stun.twilio.com:3478"]}]}
 
         webrtc_streamer(
-            key="air-canvas-fix-nav",
+            key="air-canvas-fix-nav-v2",
             video_processor_factory=CanvasProcessor,
             rtc_configuration=rtc_config, 
             media_stream_constraints={"video": {"width": {"min": 480, "ideal": 640}}, "audio": False},
             async_processing=True,
         )
     
-    # --- TOMBOL NAVIGASI BAWAH ---
+    # --- TOMBOL NAVIGASI BAWAH (FIX LOGIC) ---
     st.write("---")
     if st.button("⏩ LANJUT KE AI 2 (Smart Weather)"):
-        ganti_halaman("🌦️ Smart Weather")
-        st.rerun()
+        st.session_state.active_page = HALAMAN_2 # Update State
+        st.rerun() # Refresh Halaman
 
 # ==============================================================================
 # 6. HALAMAN 2: SMART WEATHER
 # ==============================================================================
-elif st.session_state.active_page == "🌦️ Smart Weather":
+elif st.session_state.active_page == HALAMAN_2:
     
-    # --- KONTEN AI 2 ---
     col_h1, col_h2 = st.columns([3, 1])
     with col_h1:
         st.markdown("## 🌦️ AI 2: Smart Weather (UKSW Salatiga)")
@@ -332,8 +324,8 @@ elif st.session_state.active_page == "🌦️ Smart Weather":
     except:
         st.error("Gagal koneksi API.")
 
-    # --- TOMBOL NAVIGASI BAWAH ---
+    # --- TOMBOL NAVIGASI BAWAH (FIX LOGIC) ---
     st.write("---")
     if st.button("⏪ KEMBALI KE AI 1 (Air Canvas)"):
-        ganti_halaman("🎨 AI Air Canvas")
-        st.rerun()
+        st.session_state.active_page = HALAMAN_1 # Update State
+        st.rerun() # Refresh Halaman
