@@ -85,6 +85,7 @@ with tab1:
     2.  **Browser HP** memiliki pembatasan daya/privasi yang ketat.
     
     *Silakan gunakan laptop pribadi standar untuk hasil demonstrasi terbaik.*
+    *Jika belum berhasil menyala, silahkan dilakukan klik berulang pada tombol start dan stop.*
     """)
     
     col_kiri, col_kanan = st.columns([2, 1])
@@ -276,4 +277,5 @@ with tab2:
         with c_p3: st.plotly_chart(px.line(df_pred, x="Tanggal", y="Angin Max", markers=True, title="Prediksi Angin Kencang").update_traces(line_color='purple'), use_container_width=True)
     except:
         st.error("Gagal koneksi API.")
+
 
