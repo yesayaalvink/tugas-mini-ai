@@ -74,7 +74,7 @@ tab1, tab2 = st.tabs([
 # ==========================================
 with tab1:
     # --- PESAN REKOMENDASI PERANGKAT (REQUEST KAMU) ---
-    st.error("""
+    st.warning("""
     ⚠️ **PEMBERITAHUAN PENTING UNTUK PENGGUNA:**
     
     Fitur kamera ini menggunakan teknologi WebRTC yang sangat sensitif terhadap keamanan browser.
@@ -276,3 +276,4 @@ with tab2:
         with c_p3: st.plotly_chart(px.line(df_pred, x="Tanggal", y="Angin Max", markers=True, title="Prediksi Angin Kencang").update_traces(line_color='purple'), use_container_width=True)
     except:
         st.error("Gagal koneksi API.")
+
