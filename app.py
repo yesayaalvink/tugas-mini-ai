@@ -146,14 +146,16 @@ with tab1:
                 img = cv2.bitwise_or(img, self.canvas)
                 return av.VideoFrame.from_ndarray(img, format="bgr24")
 
-        # --- KONFIGURASI JARINGAN (STUN SERVER) ---
-        # Menambahkan lebih banyak server untuk meningkatkan keandalan di jaringan seluler
-        RTC_CONFIGURATION = RTCConfiguration(
+        # --- KONFIGURASI JARINGAN SANGAT KUAT (STUN GLOBAL) ---
+        rtc_config = RTCConfiguration(
             {"iceServers": [
                 {"urls": ["stun:stun.l.google.com:19302"]},
                 {"urls": ["stun:stun1.l.google.com:19302"]},
                 {"urls": ["stun:stun2.l.google.com:19302"]},
-                {"urls": ["stun:stun.services.mozilla.com"]},
+                {"urls": ["stun:stun3.l.google.com:19302"]},
+                {"urls": ["stun:stun4.l.google.com:19302"]},
+                {"urls": ["stun:global.stun.twilio.com:3478"]},
+                {"urls": ["stun:stun.stunprotocol.org"]}
             ]}
         )
 
