@@ -144,7 +144,7 @@ if st.session_state.active_page == HALAMAN_1:
     Fitur ini menggunakan teknologi **WebRTC**. Jika kamera tidak muncul atau loading terus-menerus:
     1.  Pastikan Anda menggunakan **Laptop/PC** (Browser HP sering memblokir akses).
     2.  Pastikan tidak menggunakan jaringan dengan Firewall ketat.
-    3.  Jika gagal, silakan **Refresh** halaman dan coba lagi.
+    3.  Jika gagal, silakan **Refresh** halaman dan coba lagi atau klik Start kembali.
     """)
     
     col_kiri, col_kanan = st.columns([2, 1])
@@ -329,3 +329,4 @@ elif st.session_state.active_page == HALAMAN_2:
     if st.button("⏪ KEMBALI KE AI 1 (Air Canvas)"):
         st.session_state.active_page = HALAMAN_1 # Update State
         st.rerun() # Refresh Halaman
+
