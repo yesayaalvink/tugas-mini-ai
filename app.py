@@ -162,7 +162,7 @@ with tab1:
         webrtc_streamer(
             key="air-canvas-final-fix",
             video_processor_factory=CanvasProcessor,
-            rtc_configuration=RTC_CONFIGURATION, # Gunakan config baru
+            rtc_configuration=RTCConfiguration, # Gunakan config baru
             media_stream_constraints={"video": True, "audio": False},
             async_processing=True,
         )
@@ -262,5 +262,6 @@ with tab2:
         with c_p3: st.plotly_chart(px.line(df_pred, x="Tanggal", y="Angin Max", markers=True, title="Prediksi Angin Kencang").update_traces(line_color='purple'), use_container_width=True)
     except:
         st.error("Gagal koneksi API.")
+
 
 
