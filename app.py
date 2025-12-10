@@ -63,17 +63,29 @@ st.set_page_config(layout="wide", page_title="Super AI Dashboard")
 st.title("🤖 Artificial Intelligence Dashboard (2-in-1)")
 st.caption("Dibuat oleh: Yesaya Alvin K (632025053)")
 
-# --- TAB SETUP (2 TAB SAJA) ---
+# --- TAB SETUP ---
 tab1, tab2 = st.tabs([
     "🎨 AI Air Canvas", 
     "🌦️ Smart Weather"
 ])
 
 # ==========================================
-# TAB 1: AI AIR CANVAS (STRONG FIREWALL BYPASS)
+# TAB 1: AI AIR CANVAS
 # ==========================================
 with tab1:
-    st.info("💡 **Tips:** Jika loading lama, coba refresh. Di HP, gunakan Chrome/Safari terbaru.")
+    # --- PESAN REKOMENDASI PERANGKAT (REQUEST KAMU) ---
+    st.error("""
+    ⚠️ **PEMBERITAHUAN PENTING UNTUK PENGGUNA:**
+    
+    Fitur kamera ini menggunakan teknologi WebRTC yang sangat sensitif terhadap keamanan browser.
+    **SANGAT DISARANKAN MENGGUNAKAN LAPTOP (WINDOWS/MAC) STANDAR.**
+    
+    Jika kamera gagal dimuat (Error Connection/Taking too long), penyebabnya biasanya adalah:
+    1.  **Firewall/Antivirus** di Laptop Gaming/Kantor memblokir akses.
+    2.  **Browser HP** memiliki pembatasan daya/privasi yang ketat.
+    
+    *Silakan gunakan laptop pribadi standar untuk hasil demonstrasi terbaik.*
+    """)
     
     col_kiri, col_kanan = st.columns([2, 1])
     with col_kanan:
@@ -146,25 +158,21 @@ with tab1:
                 img = cv2.bitwise_or(img, self.canvas)
                 return av.VideoFrame.from_ndarray(img, format="bgr24")
 
-        # --- KONFIGURASI JARINGAN SPESIAL (PORT 80 & 5349) ---
-        # Ini trik untuk menembus firewall yang memblokir port default 19302
+        # --- KONFIGURASI JARINGAN ---
         rtc_config = {
             "iceServers": [
-                {"urls": ["stun:stun.l.google.com:19302"]}, # Default
-                {"urls": ["stun:stun1.l.google.com:19302"]},
-                {"urls": ["stun:stun2.l.google.com:19302"]},
-                {"urls": ["stun:stun3.l.google.com:19302"]},
-                {"urls": ["stun:stun4.l.google.com:19302"]},
+                {"urls": ["stun:stun.l.google.com:19302"]},
+                {"urls": ["stun:global.stun.twilio.com:3478"]},
             ]
         }
 
         webrtc_streamer(
-            key="air-canvas-final-v3",
+            key="air-canvas-final-v4",
             video_processor_factory=CanvasProcessor,
             rtc_configuration=rtc_config, 
             media_stream_constraints={
                 "video": {
-                    "width": {"min": 480, "ideal": 640}, # Kurangi resolusi biar ringan
+                    "width": {"min": 480, "ideal": 640}, 
                     "height": {"min": 360, "ideal": 480},
                     "frameRate": {"max": 30},
                 }, 
@@ -174,7 +182,7 @@ with tab1:
         )
 
 # ==========================================
-# TAB 2: SMART WEATHER (PERFECT)
+# TAB 2: SMART WEATHER
 # ==========================================
 with tab2:
     col_h1, col_h2 = st.columns([3, 1])
