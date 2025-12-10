@@ -147,20 +147,22 @@ with tab1:
                 return av.VideoFrame.from_ndarray(img, format="bgr24")
 
         # --- KONFIGURASI JARINGAN (STUN SERVER) ---
-        # Ini rahasianya supaya jalan lancar di HP dan Jaringan berbeda
-        rtc_config = RTCConfiguration(
+        # Menambahkan lebih banyak server untuk meningkatkan keandalan di jaringan seluler
+        RTC_CONFIGURATION = RTCConfiguration(
             {"iceServers": [
                 {"urls": ["stun:stun.l.google.com:19302"]},
-                {"urls": ["stun:global.stun.twilio.com:3478"]}
+                {"urls": ["stun:stun1.l.google.com:19302"]},
+                {"urls": ["stun:stun2.l.google.com:19302"]},
+                {"urls": ["stun:stun.services.mozilla.com"]},
             ]}
         )
 
         webrtc_streamer(
-            key="air-canvas-fix-mobile",
+            key="air-canvas-final-fix",
             video_processor_factory=CanvasProcessor,
-            rtc_configuration=rtc_config,  # Pake config yang kuat
-            media_stream_constraints={"video": True, "audio": False}, # Matikan audio biar ringan
-            async_processing=True
+            rtc_configuration=RTC_CONFIGURATION, # Gunakan config baru
+            media_stream_constraints={"video": True, "audio": False},
+            async_processing=True,
         )
 
 # ==========================================
@@ -258,4 +260,5 @@ with tab2:
         with c_p3: st.plotly_chart(px.line(df_pred, x="Tanggal", y="Angin Max", markers=True, title="Prediksi Angin Kencang").update_traces(line_color='purple'), use_container_width=True)
     except:
         st.error("Gagal koneksi API.")
+
 
