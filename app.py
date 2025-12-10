@@ -10,14 +10,62 @@ import plotly.express as px
 from datetime import datetime, timedelta
 from streamlit_webrtc import webrtc_streamer, VideoProcessorBase, RTCConfiguration
 
-# --- 1. SETUP SESSION STATE ---
+# ==============================================================================
+# 1. SETUP PAGE & CSS (STYLE KEREN)
+# ==============================================================================
+st.set_page_config(layout="wide", page_title="Super AI Dashboard")
+
+# Custom CSS untuk membuat Navigasi Besar & Tombol Keren
+st.markdown("""
+<style>
+    /* Mengubah Ukuran Radio Button menjadi Tombol Tab Besar */
+    div[role="radiogroup"] {
+        display: flex;
+        justify-content: center;
+        width: 100%;
+        background-color: #f0f2f6;
+        padding: 10px;
+        border-radius: 15px;
+    }
+    div[role="radiogroup"] label {
+        background-color: white;
+        padding: 15px 30px;
+        border-radius: 10px;
+        margin: 0 10px;
+        font-size: 20px !important; /* Font Besar */
+        font-weight: bold;
+        border: 2px solid #ddd;
+        cursor: pointer;
+        transition: 0.3s;
+        text-align: center;
+        flex-grow: 1;
+    }
+    div[role="radiogroup"] label:hover {
+        border-color: #ff4b4b;
+        color: #ff4b4b;
+    }
+    /* Highlight tombol yang aktif */
+    div[role="radiogroup"] label[data-baseweb="radio"] > div:first-child {
+        background-color: #ff4b4b !important;
+    }
+    
+    /* Tombol Next/Prev di Bawah */
+    .stButton button {
+        width: 100%;
+        font-size: 18px;
+        padding: 10px;
+        font-weight: bold;
+    }
+</style>
+""", unsafe_allow_html=True)
+
+# ==============================================================================
+# 2. INTRO PAGE (UPDATE TEKS)
+# ==============================================================================
 if 'intro_done' not in st.session_state:
     st.session_state.intro_done = False
 
-# --- 2. INTRO PAGE ---
 if not st.session_state.intro_done:
-    st.set_page_config(page_title="Intro - Tugas AI", layout="centered")
-    
     st.title("👋 Halo!")
     st.markdown("""
     ### Selamat Datang di AI Dashboard
@@ -32,7 +80,7 @@ if not st.session_state.intro_done:
     1.  **🎨 AI Air Canvas:** Menggambar di udara (Computer Vision).
     2.  **🌦️ Smart Weather:** Analisis & Prediksi Cuaca Real-time.
 
-    ⚠️ **CATATAN PENTING: Jika AI 1 (AI Air Canvas) mengalami kegagalan, saya menyarankan untuk menggunakan AI 2 pada tab 2 untuk mencoba feature lainnya.**
+    ⚠️ **CATATAN PENTING: Jika AI 1 (AI Air Canvas) mengalami kegagalan (karena faktor device/jaringan), saya menyarankan untuk menggunakan AI 2 pada tab 2 untuk mencoba feature lainnya.**
     """)
     
     if st.button("🚀 MULAI APLIKASI", type="primary", use_container_width=True):
@@ -41,16 +89,45 @@ if not st.session_state.intro_done:
     st.stop()
 
 # ==============================================================================
-# MAIN DASHBOARD
+# 3. NAVIGASI UTAMA (LOGIKA PINDAH HALAMAN)
 # ==============================================================================
 
-# --- SETUP DATABASE ---
+# Init Session State untuk Navigasi
+if 'active_page' not in st.session_state:
+    st.session_state.active_page = "🎨 AI Air Canvas"
+
+# Fungsi untuk ganti halaman lewat tombol bawah
+def ganti_halaman(halaman):
+    st.session_state.active_page = halaman
+
+# Header Dashboard
+st.title("🤖 Artificial Intelligence Dashboard")
+st.caption("Dibuat oleh: Yesaya Alvin K (632025053)")
+
+# Menu Navigasi (Radio Button rasa Tabs)
+pilihan_menu = st.radio(
+    "", 
+    ["🎨 AI Air Canvas", "🌦️ Smart Weather"], 
+    index=0 if st.session_state.active_page == "🎨 AI Air Canvas" else 1,
+    horizontal=True,
+    label_visibility="collapsed",
+    key="navigasi_atas",
+    on_change=lambda: ganti_halaman(st.session_state.navigasi_atas) # Sinkronisasi state
+)
+
+# Update state jika radio button diklik manual
+if pilihan_menu != st.session_state.active_page:
+    st.session_state.active_page = pilihan_menu
+    st.rerun()
+
+# ==============================================================================
+# 4. FUNGSI DATABASE & HELPER
+# ==============================================================================
 conn = sqlite3.connect('database_ai_v2.db', check_same_thread=False)
 c = conn.cursor()
 c.execute('CREATE TABLE IF NOT EXISTS galeri (waktu TEXT, event TEXT, status TEXT)')
 conn.commit()
 
-# FUNGSI WAKTU WIB
 def get_wib_now():
     return datetime.utcnow() + timedelta(hours=7)
 
@@ -60,32 +137,19 @@ def simpan_ke_db(event, status):
     conn.commit()
     return waktu
 
-# --- KONFIGURASI HALAMAN ---
-st.set_page_config(layout="wide", page_title="Super AI Dashboard")
-st.title("🤖 Artificial Intelligence Dashboard (2-in-1)")
-st.caption("Dibuat oleh: Yesaya Alvin K (632025053)")
-
-# --- TAB SETUP ---
-tab1, tab2 = st.tabs([
-    "🎨 AI Air Canvas", 
-    "🌦️ Smart Weather"
-])
-
-# ==========================================
-# TAB 1: AI AIR CANVAS
-# ==========================================
-with tab1:
-    # --- [DISINI GANTI WARNANYA] ---
-    # st.error -> Merah
-    # st.warning -> Kuning
-    # st.info -> Biru
+# ==============================================================================
+# 5. HALAMAN 1: AI AIR CANVAS
+# ==============================================================================
+if st.session_state.active_page == "🎨 AI Air Canvas":
+    
+    # --- KONTEN AI 1 ---
+    st.markdown("## 🎨 AI 1: Air Canvas (Hand Tracking)")
     
     st.warning("""
     ⚠️ **CATATAN PENTING (KONEKSI KAMERA):**
-    
     Fitur ini menggunakan teknologi **WebRTC**. Jika kamera tidak muncul atau loading terus-menerus:
     1.  Pastikan Anda menggunakan **Laptop/PC** (Browser HP sering memblokir akses).
-    2.  Pastikan tidak menggunakan jaringan dengan Firewall ketat (seperti WiFi Kantor/Kampus tertentu).
+    2.  Pastikan tidak menggunakan jaringan dengan Firewall ketat.
     3.  Jika gagal, silakan **Refresh** halaman dan coba lagi.
     """)
     
@@ -107,8 +171,7 @@ with tab1:
         if st.checkbox("Tampilkan Data Log", value=True):
             try:
                 df = pd.read_sql_query("SELECT * FROM galeri ORDER BY waktu DESC", conn)
-                # width='stretch' untuk menghilangkan warning di versi baru
-                st.dataframe(df, use_container_width=True) 
+                st.dataframe(df, use_container_width=True)
             except:
                 st.write("Belum ada data.")
 
@@ -161,35 +224,32 @@ with tab1:
                 img = cv2.bitwise_or(img, self.canvas)
                 return av.VideoFrame.from_ndarray(img, format="bgr24")
 
-        # --- KONFIGURASI JARINGAN STUN GOOGLE (Paling Stabil) ---
-        rtc_config = {
-            "iceServers": [
-                {"urls": ["stun:stun.l.google.com:19302"]},
-            ]
-        }
+        # Config STUN
+        rtc_config = {"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}, {"urls": ["stun:global.stun.twilio.com:3478"]}]}
 
         webrtc_streamer(
-            key="air-canvas-final-v5",
+            key="air-canvas-fix-nav",
             video_processor_factory=CanvasProcessor,
             rtc_configuration=rtc_config, 
-            media_stream_constraints={
-                "video": {
-                    "width": {"min": 480, "ideal": 640}, 
-                    "height": {"min": 360, "ideal": 480},
-                    "frameRate": {"max": 30},
-                }, 
-                "audio": False
-            },
+            media_stream_constraints={"video": {"width": {"min": 480, "ideal": 640}}, "audio": False},
             async_processing=True,
         )
+    
+    # --- TOMBOL NAVIGASI BAWAH ---
+    st.write("---")
+    if st.button("⏩ LANJUT KE AI 2 (Smart Weather)"):
+        ganti_halaman("🌦️ Smart Weather")
+        st.rerun()
 
-# ==========================================
-# TAB 2: SMART WEATHER
-# ==========================================
-with tab2:
+# ==============================================================================
+# 6. HALAMAN 2: SMART WEATHER
+# ==============================================================================
+elif st.session_state.active_page == "🌦️ Smart Weather":
+    
+    # --- KONTEN AI 2 ---
     col_h1, col_h2 = st.columns([3, 1])
     with col_h1:
-        st.header("🌦️ Smart Weather: UKSW Salatiga")
+        st.markdown("## 🌦️ AI 2: Smart Weather (UKSW Salatiga)")
     with col_h2:
         if st.button("🔄 Refresh Data"):
             st.rerun()
@@ -201,7 +261,7 @@ with tab2:
         response = requests.get(url)
         data = response.json()
         
-        # 1. AI ANALISIS
+        # AI Analisis
         st.subheader("🤖 Analisis AI Cuaca Real-Time")
         cur = data['current']
         suhu, hujan, angin = cur['temperature_2m'], cur['precipitation'], cur['wind_speed_10m']
@@ -226,7 +286,7 @@ with tab2:
 
         st.write("---")
 
-        # 2. MONITORING GRAFIK
+        # Monitoring Grafik
         st.subheader("📈 Monitoring Grafik (Interactive)")
         pilihan_waktu = st.radio("Pilih Interval Data:", ["Per Jam", "Harian"], horizontal=True)
         df_show = pd.DataFrame()
@@ -238,8 +298,7 @@ with tab2:
             now_wib = get_wib_now() 
             mask = (df_show['Waktu'] >= now_wib.replace(tzinfo=None)) & (df_show['Waktu'] <= (now_wib + timedelta(hours=24)).replace(tzinfo=None))
             df_show = df_show.loc[mask]
-
-        else: # Harian
+        else:
             d = data['daily']
             df_show = pd.DataFrame({"Waktu": d['time'], "Suhu": d['temperature_2m_max'], "Hujan": d['precipitation_sum'], "Angin": d['wind_speed_10m_max']})
             df_show['Waktu'] = pd.to_datetime(df_show['Waktu'])
@@ -253,21 +312,15 @@ with tab2:
 
         c_g1, c_g2, c_g3 = st.columns(3)
         with c_g1:
-            fig1 = px.line(df_show, x="Waktu", y="Suhu", title=f"Grafik Suhu ({pilihan_waktu})")
-            fig1.update_traces(line_color='#FF4B4B')
-            st.plotly_chart(apply_layout_fix(fig1, pilihan_waktu), use_container_width=True)
+            st.plotly_chart(apply_layout_fix(px.line(df_show, x="Waktu", y="Suhu", title=f"Suhu ({pilihan_waktu})").update_traces(line_color='#FF4B4B'), pilihan_waktu), use_container_width=True)
         with c_g2:
-            fig2 = px.bar(df_show, x="Waktu", y="Hujan", title=f"Grafik Hujan ({pilihan_waktu})")
-            fig2.update_traces(marker_color='#00BFFF')
-            st.plotly_chart(apply_layout_fix(fig2, pilihan_waktu), use_container_width=True)
+            st.plotly_chart(apply_layout_fix(px.bar(df_show, x="Waktu", y="Hujan", title=f"Hujan ({pilihan_waktu})").update_traces(marker_color='#00BFFF'), pilihan_waktu), use_container_width=True)
         with c_g3:
-            fig3 = px.area(df_show, x="Waktu", y="Angin", title=f"Grafik Angin ({pilihan_waktu})")
-            fig3.update_traces(line_color='#5D3FD3')
-            st.plotly_chart(apply_layout_fix(fig3, pilihan_waktu), use_container_width=True)
+            st.plotly_chart(apply_layout_fix(px.area(df_show, x="Waktu", y="Angin", title=f"Angin ({pilihan_waktu})").update_traces(line_color='#5D3FD3'), pilihan_waktu), use_container_width=True)
 
         st.write("---")
         
-        # 3. PREDIKSI
+        # Prediksi
         st.subheader("📅 Prediksi Jangka Panjang (7 Hari)")
         d_pred = data['daily']
         df_pred = pd.DataFrame({"Tanggal": d_pred['time'], "Suhu Max": d_pred['temperature_2m_max'], "Total Hujan": d_pred['precipitation_sum'], "Angin Max": d_pred['wind_speed_10m_max']})
@@ -279,3 +332,8 @@ with tab2:
     except:
         st.error("Gagal koneksi API.")
 
+    # --- TOMBOL NAVIGASI BAWAH ---
+    st.write("---")
+    if st.button("⏪ KEMBALI KE AI 1 (Air Canvas)"):
+        ganti_halaman("🎨 AI Air Canvas")
+        st.rerun()
