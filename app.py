@@ -31,6 +31,8 @@ if not st.session_state.intro_done:
     **🛠️ Fitur AI:**
     1.  **🎨 AI Air Canvas:** Menggambar di udara (Computer Vision).
     2.  **🌦️ Smart Weather:** Analisis & Prediksi Cuaca Real-time.
+
+    ⚠️ **CATATAN PENTING: Jika AI 1 (AI Air Canvas) mengalami kegagalan, saya menyarankan untuk menggunakan AI 2 pada tab 2 untuk mencoba feature lainnya.**
     """)
     
     if st.button("🚀 MULAI APLIKASI", type="primary", use_container_width=True):
@@ -276,3 +278,4 @@ with tab2:
         with c_p3: st.plotly_chart(px.line(df_pred, x="Tanggal", y="Angin Max", markers=True, title="Prediksi Angin Kencang").update_traces(line_color='purple'), use_container_width=True)
     except:
         st.error("Gagal koneksi API.")
+
