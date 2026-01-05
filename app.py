@@ -7,26 +7,29 @@ import sqlite3
 import pandas as pd
 import requests
 import plotly.express as px
-import gc 
+import gc
 from datetime import datetime, timedelta
 from streamlit_webrtc import webrtc_streamer, VideoProcessorBase, RTCConfiguration
 
 # ==============================================================================
-# 0. INITIALIZE MEDIAPIPE GLOBALLY (CRITICAL FIX)
+# 0. GLOBAL SETUP (PENTING: LOAD MEDIAPIPE DI SINI)
 # ==============================================================================
-# Kita load model di sini agar tidak error saat masuk ke thread webrtc
+# Kita load di luar class supaya tidak error saat threading
+mp_hands = None
 try:
-    mp_hands = mp.solutions.hands
-    mp_drawing = mp.solutions.drawing_utils
+    if hasattr(mp, 'solutions'):
+        mp_hands = mp.solutions.hands
+    else:
+        # Fallback manual jika atribut solutions tidak terdeteksi langsung
+        import mediapipe.python.solutions.hands as mp_hands
 except Exception as e:
-    st.error(f"Error loading MediaPipe libraries: {e}")
+    print(f"Warning: MediaPipe failed to load normally: {e}")
 
 # ==============================================================================
 # 1. SETUP PAGE & CSS
 # ==============================================================================
 st.set_page_config(layout="wide", page_title="Super AI Dashboard")
 
-# CSS Navigasi
 st.markdown("""
 <style>
     div[role="radiogroup"] {
@@ -76,11 +79,6 @@ if not st.session_state.intro_done:
     **Dibuat oleh:**
     *   **Nama:** Yesaya Alvin K
     *   **NIM:** 632025053
-    
-    ---
-    **🛠️ Fitur AI:**
-    1.  **🎨 AI Air Canvas:** Menggambar di udara (Computer Vision).
-    2.  **🌦️ Smart Weather:** Analisis & Prediksi Cuaca Real-time.
     """)
     
     if st.button("🚀 MULAI APLIKASI", type="primary", use_container_width=True):
@@ -137,9 +135,6 @@ def simpan_ke_db(event, status):
 if st.session_state.active_page == HALAMAN_1:
     
     st.markdown("## 🎨 AI 1: Air Canvas (Hand Tracking)")
-    st.warning("""
-    ⚠️ **CATATAN PENTING:** Jika kamera tidak muncul, pastikan browser mengizinkan akses kamera atau coba refresh halaman.
-    """)
     
     col_kiri, col_kanan = st.columns([2, 1])
     with col_kanan:
@@ -150,12 +145,10 @@ if st.session_state.active_page == HALAMAN_1:
         2. ✊ Kepal Tangan = 🛑 **STOP**
         3. ✌️ Peace / ✋ Buka = 🛑 **STOP**
         """)
-        if st.button("💾 Simpan Log Aktivitas"):
+        if st.button("💾 Simpan Log"):
             waktu = simpan_ke_db("User Save Button", "Recorded")
-            st.success(f"Log berhasil disimpan: {waktu}")
+            st.success(f"Log: {waktu}")
 
-        st.write("---")
-        st.subheader("📂 Database Viewer")
         if st.checkbox("Tampilkan Data Log", value=True):
             try:
                 df = pd.read_sql_query("SELECT * FROM galeri ORDER BY waktu DESC", conn)
@@ -166,86 +159,95 @@ if st.session_state.active_page == HALAMAN_1:
     with col_kiri:
         st.header("Kamera (Live)")
         
-        class CanvasProcessor(VideoProcessorBase):
-            def __init__(self):
-                # FIX: Menggunakan variabel global mp_hands, bukan init di sini
-                self.hands = mp_hands.Hands(
-                    model_complexity=0, 
-                    max_num_hands=1, 
-                    min_detection_confidence=0.7, 
-                    min_tracking_confidence=0.7
-                )
-                self.canvas = None
-                self.prev_x, self.prev_y = 0, 0
+        # Cek apakah mediapipe berhasil diload
+        if mp_hands is None:
+            st.error("Gagal memuat modul AI (MediaPipe). Mohon cek requirements.txt (protobuf==3.20.0).")
+        else:
+            class CanvasProcessor(VideoProcessorBase):
+                def __init__(self):
+                    # KUNCI PERBAIKAN: Jangan panggil mp.solutions di sini.
+                    # Gunakan variabel global 'mp_hands' yang sudah diload di atas.
+                    try:
+                        self.hands = mp_hands.Hands(
+                            model_complexity=0, 
+                            max_num_hands=1, 
+                            min_detection_confidence=0.5, 
+                            min_tracking_confidence=0.5
+                        )
+                    except Exception as e:
+                        print(f"Error init hands: {e}")
+                        self.hands = None
+                        
+                    self.canvas = None
+                    self.prev_x, self.prev_y = 0, 0
 
-            def recv(self, frame):
-                try:
-                    img = frame.to_ndarray(format="bgr24")
-                    img = cv2.flip(img, 1) 
-                    h, w, c = img.shape
-                    
-                    # Resize jika gambar terlalu besar (Hemat RAM)
-                    if w > 640:
-                        img = cv2.resize(img, (640, 480))
+                def recv(self, frame):
+                    try:
+                        img = frame.to_ndarray(format="bgr24")
+                        img = cv2.flip(img, 1) 
                         h, w, c = img.shape
+                        
+                        # Resize agresif untuk hemat memori
+                        if w > 640:
+                            img = cv2.resize(img, (640, 480))
+                            h, w, c = img.shape
 
-                    if self.canvas is None: self.canvas = np.zeros((h, w, 3), dtype=np.uint8)
-                    
-                    img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-                    result = self.hands.process(img_rgb)
-                    
-                    hand_detected = False
-                    if result.multi_hand_landmarks:
-                        for hand_lms in result.multi_hand_landmarks:
-                            hand_detected = True
-                            lm_list = []
-                            for id, lm in enumerate(hand_lms.landmark):
-                                cx, cy = int(lm.x * w), int(lm.y * h)
-                                lm_list.append([id, cx, cy])
-                            if len(lm_list) != 0:
-                                x_index, y_index = lm_list[8][1], lm_list[8][2]
-                                index_up = lm_list[8][2] < lm_list[6][2]
-                                middle_up = lm_list[12][2] < lm_list[10][2]
-                                mode_gambar = index_up and not middle_up
-                                if mode_gambar:
-                                    cv2.circle(img, (x_index, y_index), 15, (0, 0, 255), cv2.FILLED)
-                                    if self.prev_x == 0 and self.prev_y == 0: self.prev_x, self.prev_y = x_index, y_index
-                                    cv2.line(self.canvas, (self.prev_x, self.prev_y), (x_index, y_index), (255, 0, 255), 5)
-                                    self.prev_x, self.prev_y = x_index, y_index
-                                else:
-                                    self.prev_x, self.prev_y = 0, 0
-                                    cv2.circle(img, (x_index, y_index), 15, (0, 255, 0), cv2.FILLED)
-                                    msg = "STOP"
-                                    if index_up and middle_up: msg = "PEACE / BUKA"
-                                    if not index_up: msg = "KEPAL"
-                                    cv2.putText(img, msg, (x_index, y_index-20), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
-                    
-                    if not hand_detected: self.prev_x, self.prev_y = 0, 0
-                    
-                    img_gray = cv2.cvtColor(self.canvas, cv2.COLOR_BGR2GRAY)
-                    _, img_inv = cv2.threshold(img_gray, 50, 255, cv2.THRESH_BINARY_INV)
-                    img_inv = cv2.cvtColor(img_inv, cv2.COLOR_GRAY2BGR)
-                    
-                    # Pastikan ukuran canvas dan img sama (Anti Crash)
-                    if img.shape == self.canvas.shape:
-                        img = cv2.bitwise_and(img, img_inv)
-                        img = cv2.bitwise_or(img, self.canvas)
-                    
-                    gc.collect() 
-                    return av.VideoFrame.from_ndarray(img, format="bgr24")
-                except Exception as e:
-                    print(e)
-                    return frame
+                        if self.canvas is None: self.canvas = np.zeros((h, w, 3), dtype=np.uint8)
+                        
+                        # Jika model hands gagal load, kembalikan gambar biasa
+                        if self.hands is None:
+                            return av.VideoFrame.from_ndarray(img, format="bgr24")
 
-        rtc_config = {"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]}
+                        img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+                        result = self.hands.process(img_rgb)
+                        
+                        hand_detected = False
+                        if result.multi_hand_landmarks:
+                            for hand_lms in result.multi_hand_landmarks:
+                                hand_detected = True
+                                lm_list = []
+                                for id, lm in enumerate(hand_lms.landmark):
+                                    cx, cy = int(lm.x * w), int(lm.y * h)
+                                    lm_list.append([id, cx, cy])
+                                if len(lm_list) != 0:
+                                    x_index, y_index = lm_list[8][1], lm_list[8][2]
+                                    index_up = lm_list[8][2] < lm_list[6][2]
+                                    middle_up = lm_list[12][2] < lm_list[10][2]
+                                    mode_gambar = index_up and not middle_up
+                                    if mode_gambar:
+                                        cv2.circle(img, (x_index, y_index), 15, (0, 0, 255), cv2.FILLED)
+                                        if self.prev_x == 0 and self.prev_y == 0: self.prev_x, self.prev_y = x_index, y_index
+                                        cv2.line(self.canvas, (self.prev_x, self.prev_y), (x_index, y_index), (255, 0, 255), 5)
+                                        self.prev_x, self.prev_y = x_index, y_index
+                                    else:
+                                        self.prev_x, self.prev_y = 0, 0
+                                        cv2.circle(img, (x_index, y_index), 15, (0, 255, 0), cv2.FILLED)
+                        
+                        if not hand_detected: self.prev_x, self.prev_y = 0, 0
+                        
+                        img_gray = cv2.cvtColor(self.canvas, cv2.COLOR_BGR2GRAY)
+                        _, img_inv = cv2.threshold(img_gray, 50, 255, cv2.THRESH_BINARY_INV)
+                        img_inv = cv2.cvtColor(img_inv, cv2.COLOR_GRAY2BGR)
+                        
+                        if img.shape == self.canvas.shape:
+                            img = cv2.bitwise_and(img, img_inv)
+                            img = cv2.bitwise_or(img, self.canvas)
+                        
+                        gc.collect()
+                        return av.VideoFrame.from_ndarray(img, format="bgr24")
+                    except Exception as e:
+                        print(f"Frame Error: {e}")
+                        return frame
 
-        webrtc_streamer(
-            key="air-canvas-lite",
-            video_processor_factory=CanvasProcessor,
-            rtc_configuration=rtc_config, 
-            media_stream_constraints={"video": {"width": {"ideal": 480}}, "audio": False},
-            async_processing=True,
-        )
+            rtc_config = {"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]}
+
+            webrtc_streamer(
+                key="air-canvas-lite",
+                video_processor_factory=CanvasProcessor,
+                rtc_configuration=rtc_config, 
+                media_stream_constraints={"video": {"width": {"ideal": 480}}, "audio": False},
+                async_processing=True,
+            )
     
     st.write("---")
     if st.button("⏩ LANJUT KE AI 2 (Smart Weather)"):
@@ -259,11 +261,10 @@ elif st.session_state.active_page == HALAMAN_2:
     
     col_h1, col_h2 = st.columns([3, 1])
     with col_h1:
-        st.markdown("## 🌦️ AI 2: Smart Weather (UKSW Salatiga)")
+        st.markdown("## 🌦️ AI 2: Smart Weather")
     with col_h2:
         if st.button("🔄 Refresh Data"):
             st.rerun()
-        st.caption(f"Last Updated (WIB): {get_wib_now().strftime('%H:%M:%S')}")
 
     LAT, LON = -7.3305, 110.5084
     try:
@@ -275,57 +276,20 @@ elif st.session_state.active_page == HALAMAN_2:
         cur = data['current']
         suhu, hujan, angin = cur['temperature_2m'], cur['precipitation'], cur['wind_speed_10m']
         
-        pesan, bg_color = "✅ Cuaca Normal.", "success"
-        if hujan > 0.5: pesan, bg_color = "⛈️ HUJAN TERDETEKSI: Sedia payung.", "error"
-        elif angin > 15: pesan, bg_color = "🌬️ ANGIN KENCANG: Hati-hati.", "warning"
-        elif suhu > 30: pesan, bg_color = "🥵 SUHU PANAS: Jaga hidrasi.", "warning"
-        
-        if bg_color == "error": st.error(pesan)
-        elif bg_color == "warning": st.warning(pesan)
-        else: st.success(pesan)
-        
-        m1, m2, m3, m4 = st.columns(4)
+        m1, m2, m3 = st.columns(3)
         m1.metric("🌡️ Suhu", f"{suhu} °C")
         m2.metric("💧 Hujan", f"{hujan} mm")
         m3.metric("🌬️ Angin", f"{angin} km/h")
-        with m4:
-            if st.button("💾 Log Cuaca"):
-                simpan_ke_db("Weather Log", f"T:{suhu}, R:{hujan}, W:{angin}")
-                st.toast("Data Tersimpan!")
 
         st.write("---")
+        st.subheader("📅 Prediksi 7 Hari")
+        d_pred = data['daily']
+        df_pred = pd.DataFrame({"Tanggal": d_pred['time'], "Suhu Max": d_pred['temperature_2m_max'], "Hujan": d_pred['precipitation_sum']})
+        st.plotly_chart(px.line(df_pred, x="Tanggal", y=["Suhu Max", "Hujan"]), use_container_width=True)
+    except:
+        st.error("Gagal koneksi API.")
 
-        st.subheader("📈 Monitoring Grafik (Interactive)")
-        pilihan_waktu = st.radio("Pilih Interval Data:", ["Per Jam", "Harian"], horizontal=True)
-        df_show = pd.DataFrame()
-        
-        if pilihan_waktu == "Per Jam":
-            d = data['hourly']
-            df_show = pd.DataFrame({"Waktu": d['time'], "Suhu": d['temperature_2m'], "Hujan": d['precipitation'], "Angin": d['wind_speed_10m']})
-            df_show['Waktu'] = pd.to_datetime(df_show['Waktu'])
-            now_wib = get_wib_now() 
-            mask = (df_show['Waktu'] >= now_wib.replace(tzinfo=None)) & (df_show['Waktu'] <= (now_wib + timedelta(hours=24)).replace(tzinfo=None))
-            df_show = df_show.loc[mask]
-        else:
-            d = data['daily']
-            df_show = pd.DataFrame({"Waktu": d['time'], "Suhu": d['temperature_2m_max'], "Hujan": d['precipitation_sum'], "Angin": d['wind_speed_10m_max']})
-            df_show['Waktu'] = pd.to_datetime(df_show['Waktu'])
-
-        def apply_layout_fix(fig, interval):
-            if interval == "Per Jam":
-                fig.update_xaxes(dtick=3600000, tickformat="%H:%M", tickangle=-45, tickmode='linear')
-            elif interval == "Harian":
-                fig.update_xaxes(tickformat="%d-%b", tickangle=-45)
-            return fig
-
-        c_g1, c_g2, c_g3 = st.columns(3)
-        with c_g1:
-            st.plotly_chart(apply_layout_fix(px.line(df_show, x="Waktu", y="Suhu", title=f"Suhu ({pilihan_waktu})").update_traces(line_color='#FF4B4B'), pilihan_waktu), use_container_width=True)
-        with c_g2:
-            st.plotly_chart(apply_layout_fix(px.bar(df_show, x="Waktu", y="Hujan", title=f"Hujan ({pilihan_waktu})").update_traces(marker_color='#00BFFF'), pilihan_waktu), use_container_width=True)
-        with c_g3:
-            st.plotly_chart(apply_layout_fix(px.area(df_show, x="Waktu", y="Angin", title=f"Angin ({pilihan_waktu})").update_traces(line_color='#5D3FD3'), pilihan_waktu), use_container_width=True)
-
-        st.write("---")
-        
-        st.subheader("📅 Prediksi Jangka Panjan
+    st.write("---")
+    if st.button("⏪ KEMBALI KE AI 1 (Air Canvas)"):
+        st.session_state.active_page = HALAMAN_1
+        st.rerun()
