@@ -7,9 +7,19 @@ import sqlite3
 import pandas as pd
 import requests
 import plotly.express as px
-import gc # Tukang bersih-bersih memori
+import gc 
 from datetime import datetime, timedelta
 from streamlit_webrtc import webrtc_streamer, VideoProcessorBase, RTCConfiguration
+
+# ==============================================================================
+# 0. INITIALIZE MEDIAPIPE GLOBALLY (CRITICAL FIX)
+# ==============================================================================
+# Kita load model di sini agar tidak error saat masuk ke thread webrtc
+try:
+    mp_hands = mp.solutions.hands
+    mp_drawing = mp.solutions.drawing_utils
+except Exception as e:
+    st.error(f"Error loading MediaPipe libraries: {e}")
 
 # ==============================================================================
 # 1. SETUP PAGE & CSS
@@ -71,8 +81,6 @@ if not st.session_state.intro_done:
     **🛠️ Fitur AI:**
     1.  **🎨 AI Air Canvas:** Menggambar di udara (Computer Vision).
     2.  **🌦️ Smart Weather:** Analisis & Prediksi Cuaca Real-time.
-
-    ⚠️ **CATATAN PENTING: Jika AI 1 (AI Air Canvas) mengalami kegagalan, saya menyarankan untuk menggunakan AI 2 pada tab 2 untuk mencoba feature lainnya.**
     """)
     
     if st.button("🚀 MULAI APLIKASI", type="primary", use_container_width=True):
@@ -124,17 +132,13 @@ def simpan_ke_db(event, status):
     return waktu
 
 # ==============================================================================
-# 5. HALAMAN 1: AI AIR CANVAS (VERSI HEMAT RAM)
+# 5. HALAMAN 1: AI AIR CANVAS
 # ==============================================================================
 if st.session_state.active_page == HALAMAN_1:
     
     st.markdown("## 🎨 AI 1: Air Canvas (Hand Tracking)")
     st.warning("""
-    ⚠️ **CATATAN PENTING (KONEKSI KAMERA):**
-    Fitur ini menggunakan teknologi **WebRTC**. Jika kamera tidak muncul:
-    1.  Pastikan menggunakan **Laptop/PC** (Browser HP sering memblokir akses).
-    2.  Pastikan jaringan stabil.
-    3.  Jika gagal, silakan **Refresh** halaman.
+    ⚠️ **CATATAN PENTING:** Jika kamera tidak muncul, pastikan browser mengizinkan akses kamera atau coba refresh halaman.
     """)
     
     col_kiri, col_kanan = st.columns([2, 1])
@@ -161,18 +165,10 @@ if st.session_state.active_page == HALAMAN_1:
 
     with col_kiri:
         st.header("Kamera (Live)")
-
-        # --- PERBAIKAN: Inisialisasi MediaPipe di luar Class (Global Scope) ---
-        # Ini mencegah error saat webrtc membuat thread baru
-        try:
-            mp_hands = mp.solutions.hands
-            mp_drawing = mp.solutions.drawing_utils
-        except Exception as e:
-            st.error(f"Gagal memuat MediaPipe: {e}")
-
+        
         class CanvasProcessor(VideoProcessorBase):
             def __init__(self):
-                # Gunakan variabel global yang sudah di-load di atas
+                # FIX: Menggunakan variabel global mp_hands, bukan init di sini
                 self.hands = mp_hands.Hands(
                     model_complexity=0, 
                     max_num_hands=1, 
@@ -188,13 +184,12 @@ if st.session_state.active_page == HALAMAN_1:
                     img = cv2.flip(img, 1) 
                     h, w, c = img.shape
                     
-                    # Resize untuk hemat RAM
+                    # Resize jika gambar terlalu besar (Hemat RAM)
                     if w > 640:
                         img = cv2.resize(img, (640, 480))
                         h, w, c = img.shape
 
-                    if self.canvas is None: 
-                        self.canvas = np.zeros((h, w, 3), dtype=np.uint8)
+                    if self.canvas is None: self.canvas = np.zeros((h, w, 3), dtype=np.uint8)
                     
                     img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
                     result = self.hands.process(img_rgb)
@@ -207,19 +202,14 @@ if st.session_state.active_page == HALAMAN_1:
                             for id, lm in enumerate(hand_lms.landmark):
                                 cx, cy = int(lm.x * w), int(lm.y * h)
                                 lm_list.append([id, cx, cy])
-                            
                             if len(lm_list) != 0:
                                 x_index, y_index = lm_list[8][1], lm_list[8][2]
-                                # Logika jari
                                 index_up = lm_list[8][2] < lm_list[6][2]
                                 middle_up = lm_list[12][2] < lm_list[10][2]
-                                
                                 mode_gambar = index_up and not middle_up
-                                
                                 if mode_gambar:
                                     cv2.circle(img, (x_index, y_index), 15, (0, 0, 255), cv2.FILLED)
-                                    if self.prev_x == 0 and self.prev_y == 0: 
-                                        self.prev_x, self.prev_y = x_index, y_index
+                                    if self.prev_x == 0 and self.prev_y == 0: self.prev_x, self.prev_y = x_index, y_index
                                     cv2.line(self.canvas, (self.prev_x, self.prev_y), (x_index, y_index), (255, 0, 255), 5)
                                     self.prev_x, self.prev_y = x_index, y_index
                                 else:
@@ -230,32 +220,30 @@ if st.session_state.active_page == HALAMAN_1:
                                     if not index_up: msg = "KEPAL"
                                     cv2.putText(img, msg, (x_index, y_index-20), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
                     
-                    if not hand_detected: 
-                        self.prev_x, self.prev_y = 0, 0
+                    if not hand_detected: self.prev_x, self.prev_y = 0, 0
                     
-                    # Gabungkan Canvas dan Gambar Webcam
                     img_gray = cv2.cvtColor(self.canvas, cv2.COLOR_BGR2GRAY)
                     _, img_inv = cv2.threshold(img_gray, 50, 255, cv2.THRESH_BINARY_INV)
                     img_inv = cv2.cvtColor(img_inv, cv2.COLOR_GRAY2BGR)
                     
-                    # Cek ukuran sebelum bitwise (Pencegahan Crash)
+                    # Pastikan ukuran canvas dan img sama (Anti Crash)
                     if img.shape == self.canvas.shape:
                         img = cv2.bitwise_and(img, img_inv)
                         img = cv2.bitwise_or(img, self.canvas)
                     
+                    gc.collect() 
                     return av.VideoFrame.from_ndarray(img, format="bgr24")
                 except Exception as e:
-                    # Print error ke console log stream untuk debugging
-                    print(f"Error in processing: {e}")
+                    print(e)
                     return frame
 
-        rtc_config = {"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}, {"urls": ["stun:global.stun.twilio.com:3478"]}]}
+        rtc_config = {"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]}
 
         webrtc_streamer(
             key="air-canvas-lite",
             video_processor_factory=CanvasProcessor,
             rtc_configuration=rtc_config, 
-            media_stream_constraints={"video": {"width": {"ideal": 480}}, "audio": False}, # Resolusi Hemat
+            media_stream_constraints={"video": {"width": {"ideal": 480}}, "audio": False},
             async_processing=True,
         )
     
@@ -340,19 +328,4 @@ elif st.session_state.active_page == HALAMAN_2:
 
         st.write("---")
         
-        st.subheader("📅 Prediksi Jangka Panjang (7 Hari)")
-        d_pred = data['daily']
-        df_pred = pd.DataFrame({"Tanggal": d_pred['time'], "Suhu Max": d_pred['temperature_2m_max'], "Total Hujan": d_pred['precipitation_sum'], "Angin Max": d_pred['wind_speed_10m_max']})
-        
-        c_p1, c_p2, c_p3 = st.columns(3)
-        with c_p1: st.plotly_chart(px.line(df_pred, x="Tanggal", y="Suhu Max", markers=True, title="Prediksi Suhu Max").update_traces(line_color='orange'), use_container_width=True)
-        with c_p2: st.plotly_chart(px.bar(df_pred, x="Tanggal", y="Total Hujan", title="Prediksi Curah Hujan").update_traces(marker_color='blue'), use_container_width=True)
-        with c_p3: st.plotly_chart(px.line(df_pred, x="Tanggal", y="Angin Max", markers=True, title="Prediksi Angin Kencang").update_traces(line_color='purple'), use_container_width=True)
-    except:
-        st.error("Gagal koneksi API.")
-
-    st.write("---")
-    if st.button("⏪ KEMBALI KE AI 1 (Air Canvas)"):
-        st.session_state.active_page = HALAMAN_1
-        st.rerun()
-
+        st.subheader("📅 Prediksi Jangka Panjan
