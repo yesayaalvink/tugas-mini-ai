@@ -118,7 +118,6 @@ pilihan_menu = st.radio(
     horizontal=True,
     label_visibility="collapsed",
     key="navigasi_radio",
-    on_change=update_halaman # Saat diklik, update state
     on_change=update_halaman
 )
 
@@ -415,3 +414,4 @@ elif st.session_state.active_page == HALAMAN_2:
 
         st.session_state.active_page = HALAMAN_1
         st.rerun()
+
