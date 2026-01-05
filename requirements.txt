@@ -1,11 +1,10 @@
 streamlit
-streamlit-webrtc
 opencv-python-headless
 mediapipe
+protobuf<3.20.x
 av
 pandas
 requests
 plotly
-SpeechRecognition
-pyaudio
-protobuf==3.20.3
+numpy
+streamlit-webrtc
