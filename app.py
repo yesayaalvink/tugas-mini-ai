@@ -161,13 +161,19 @@ if st.session_state.active_page == HALAMAN_1:
 
     with col_kiri:
         st.header("Kamera (Live)")
-        
+
+        # --- PERBAIKAN: Inisialisasi MediaPipe di luar Class (Global Scope) ---
+        # Ini mencegah error saat webrtc membuat thread baru
+        try:
+            mp_hands = mp.solutions.hands
+            mp_drawing = mp.solutions.drawing_utils
+        except Exception as e:
+            st.error(f"Gagal memuat MediaPipe: {e}")
+
         class CanvasProcessor(VideoProcessorBase):
             def __init__(self):
-                self.mp_hands = mp.solutions.hands
-                # --- LOW MEMORY MODE (model_complexity=0) ---
-                # Ini kunci supaya server tidak meledak
-                self.hands = self.mp_hands.Hands(
+                # Gunakan variabel global yang sudah di-load di atas
+                self.hands = mp_hands.Hands(
                     model_complexity=0, 
                     max_num_hands=1, 
                     min_detection_confidence=0.7, 
@@ -182,12 +188,13 @@ if st.session_state.active_page == HALAMAN_1:
                     img = cv2.flip(img, 1) 
                     h, w, c = img.shape
                     
-                    # Resize jika gambar terlalu besar (Hemat RAM)
+                    # Resize untuk hemat RAM
                     if w > 640:
                         img = cv2.resize(img, (640, 480))
                         h, w, c = img.shape
 
-                    if self.canvas is None: self.canvas = np.zeros((h, w, 3), dtype=np.uint8)
+                    if self.canvas is None: 
+                        self.canvas = np.zeros((h, w, 3), dtype=np.uint8)
                     
                     img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
                     result = self.hands.process(img_rgb)
@@ -200,14 +207,19 @@ if st.session_state.active_page == HALAMAN_1:
                             for id, lm in enumerate(hand_lms.landmark):
                                 cx, cy = int(lm.x * w), int(lm.y * h)
                                 lm_list.append([id, cx, cy])
+                            
                             if len(lm_list) != 0:
                                 x_index, y_index = lm_list[8][1], lm_list[8][2]
+                                # Logika jari
                                 index_up = lm_list[8][2] < lm_list[6][2]
                                 middle_up = lm_list[12][2] < lm_list[10][2]
+                                
                                 mode_gambar = index_up and not middle_up
+                                
                                 if mode_gambar:
                                     cv2.circle(img, (x_index, y_index), 15, (0, 0, 255), cv2.FILLED)
-                                    if self.prev_x == 0 and self.prev_y == 0: self.prev_x, self.prev_y = x_index, y_index
+                                    if self.prev_x == 0 and self.prev_y == 0: 
+                                        self.prev_x, self.prev_y = x_index, y_index
                                     cv2.line(self.canvas, (self.prev_x, self.prev_y), (x_index, y_index), (255, 0, 255), 5)
                                     self.prev_x, self.prev_y = x_index, y_index
                                 else:
@@ -218,22 +230,23 @@ if st.session_state.active_page == HALAMAN_1:
                                     if not index_up: msg = "KEPAL"
                                     cv2.putText(img, msg, (x_index, y_index-20), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
                     
-                    if not hand_detected: self.prev_x, self.prev_y = 0, 0
+                    if not hand_detected: 
+                        self.prev_x, self.prev_y = 0, 0
                     
+                    # Gabungkan Canvas dan Gambar Webcam
                     img_gray = cv2.cvtColor(self.canvas, cv2.COLOR_BGR2GRAY)
                     _, img_inv = cv2.threshold(img_gray, 50, 255, cv2.THRESH_BINARY_INV)
                     img_inv = cv2.cvtColor(img_inv, cv2.COLOR_GRAY2BGR)
                     
-                    # Pastikan ukuran canvas dan img sama (Anti Crash)
+                    # Cek ukuran sebelum bitwise (Pencegahan Crash)
                     if img.shape == self.canvas.shape:
                         img = cv2.bitwise_and(img, img_inv)
                         img = cv2.bitwise_or(img, self.canvas)
                     
-                    # --- BERSIH-BERSIH MEMORI ---
-                    gc.collect() 
-                    
                     return av.VideoFrame.from_ndarray(img, format="bgr24")
-                except Exception:
+                except Exception as e:
+                    # Print error ke console log stream untuk debugging
+                    print(f"Error in processing: {e}")
                     return frame
 
         rtc_config = {"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}, {"urls": ["stun:global.stun.twilio.com:3478"]}]}
@@ -342,3 +355,4 @@ elif st.session_state.active_page == HALAMAN_2:
     if st.button("⏪ KEMBALI KE AI 1 (Air Canvas)"):
         st.session_state.active_page = HALAMAN_1
         st.rerun()
+
